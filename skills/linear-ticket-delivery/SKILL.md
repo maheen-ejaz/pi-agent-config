@@ -66,7 +66,20 @@ is required.
 
 ## Completion
 
-Before completion or a blocker, post one value-free Linear update with the distinct
-approaches, outcomes, and decisive evidence or remaining blocker. Once global
-`COMPLETE` requirements are met, close the ticket, complete the goal, and report the
-global status card.
+Before completion or a blocker, run the repository's fresh, non-destructive task-close
+classification when available. Revalidate the exact repository/worktree identity,
+branch, HEAD, freshly fetched default SHA, dirty and in-progress Git state, owner
+release, and push/PR/merge evidence. Record one disposition in the Linear update and
+local task record: `active`, `preserve-dirty`, `preserve-unmerged`,
+`blocked-ownership`, or `ready-for-admin-retirement-review`. Unknown or conflicting
+evidence preserves the worktree and names the blocker.
+
+Never turn the classification into implicit cleanup. Committing unexpected residue,
+abandoning changes, worktree removal, and local or remote branch deletion require
+immediate structured admin approval naming the exact path, branch/ref, and HEAD, then
+fresh revalidation before execution.
+
+Post one value-free Linear update with the distinct approaches, outcomes, decisive
+evidence, close disposition, and remaining blocker if any. Once global `COMPLETE`
+requirements are met, close the ticket, complete the goal, and report the global status
+card.

@@ -21,9 +21,9 @@ Changing profiles appends a system/tool patch and may miss the preceding prompt 
 
 ## Lean-policy and full-catalog refinement
 
-The compact governance source is 3,146 bytes, about 40% smaller than its earlier 5,254-byte version. Detailed credential procedure now lives in `infisical-credential-access`, while its trigger and non-negotiable boundary remain global. The repository contains 13 independent Pi skills.
+The compact governance source is 3,408 bytes, about 35% smaller than its earlier 5,254-byte version. Detailed credential procedure now lives in `infisical-credential-access`, while its trigger and non-negotiable boundary remain global. The repository contains 13 independent Pi skills.
 
-An indicative fresh no-cache CLI benchmark used the candidate global/workspace text and complete candidate catalog while retaining the same 12-tool lean startup set:
+An earlier indicative fresh no-cache CLI benchmark used the first candidate global/workspace text and complete candidate catalog while retaining the same 12-tool lean startup set:
 
 | Metric | Earlier installed sample | Candidate sample |
 |---|---:|---:|
@@ -34,7 +34,7 @@ An indicative fresh no-cache CLI benchmark used the candidate global/workspace t
 | Provider `input` | 3,617 tokens | 3,353 tokens |
 | Cache read/write | 0 / 0 | 0 / 0 |
 
-The candidate benchmark used CLI overrides before installation, so section placement differed (`addendum` rather than normal `project_context`). Treat the result as directional, not a controlled final A/B. Run a normal fresh-session measurement after merging and synchronizing the repository.
+The benchmark used CLI overrides before installation, so section placement differed (`addendum` rather than normal `project_context`). Its 3,146-byte policy predates the final owner-preservation clauses (now 3,408 bytes), so its token count is not a measurement of the current revision. Treat the result as directional, not a controlled final A/B. Run a normal fresh-session measurement after merging and synchronizing the repository.
 
 ## Verification
 
