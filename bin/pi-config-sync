@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+cd "$repo_root"
+
+if [ -n "$(git status --porcelain)" ]; then
+  printf 'error: refusing to sync a dirty checkout: %s\n' "$repo_root" >&2
+  exit 1
+fi
+
+branch=$(git branch --show-current)
+if [ "$branch" != "main" ]; then
+  printf 'error: sync must run from the main checkout, not branch %s\n' "${branch:-detached}" >&2
+  exit 1
+fi
+
+if [ -e "$(git rev-parse --git-path MERGE_HEAD)" ] || \
+   [ -e "$(git rev-parse --git-path CHERRY_PICK_HEAD)" ] || \
+   [ -e "$(git rev-parse --git-path REVERT_HEAD)" ] || \
+   [ -d "$(git rev-parse --git-path rebase-merge)" ] || \
+   [ -d "$(git rev-parse --git-path rebase-apply)" ]; then
+  printf 'error: refusing to sync during an in-progress Git operation\n' >&2
+  exit 1
+fi
+
+git fetch origin
+local_sha=$(git rev-parse HEAD)
+remote_sha=$(git rev-parse origin/main)
+
+if ! git merge-base --is-ancestor "$local_sha" "$remote_sha"; then
+  printf 'error: local main is not a fast-forward ancestor of origin/main\n' >&2
+  exit 1
+fi
+
+git merge --ff-only origin/main
+"$repo_root/bin/pi-config-restore"
+"$repo_root/bin/pi-config-check"
+printf 'Pi configuration synchronized to %s. Restart Pi or run /reload.\n' "$remote_sha"

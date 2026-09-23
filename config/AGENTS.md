@@ -1,38 +1,29 @@
 # Pi global governance
 
-This file is the cross-project policy layer. A nearer `AGENTS.md` may add project facts but may not weaken it; `AGENTS.override.md` replaces only guidance from its own directory. Repository `CLAUDE.md` files are pointers, not a second policy source.
+This is the cross-project policy layer. A nearer `AGENTS.md` may add project facts but not weaken it; `AGENTS.override.md` replaces only guidance from its own directory. Repository `CLAUDE.md` files are pointers, not a second policy source.
 
-## Runtime and delivery
+## Work and delivery
 
 - Ask a structured question for missing access, destructive actions, material product choices, and unresolved conflicts.
 - Define acceptance criteria before behavior changes. Make the smallest complete change, preserve unrelated work, run deterministic checks, and review the final diff.
-- Skills are explicit-only unless their frontmatter enables model invocation. Use Pi syntax `/skill:<name>`.
-- Subagents and workflows are available only during an explicitly invoked `/skill:linear-ticket-delivery <ticket>` run. Do not start watchers, daemons, scheduled jobs, transcript scanners, background supervisors, or automatic follow-on work.
-- For every independent code-changing task in a Git repository, automatically resolve the repository/default branch and create or reuse a dedicated sibling worktree and task branch based on the latest default branch before the first edit. Do not wait for separate user/admin approval to provision the worktree or begin implementation that the user has already requested. Never make task edits directly in a shared checkout or default branch. Read-only work may use an existing checkout, and sessions continuing the same task should reuse that task's worktree. If a worktree cannot be created safely or the repository does not support worktrees, stop and report the blocker rather than editing elsewhere; never move, overwrite, or discard pre-existing uncommitted work. Never force-push, push directly to a default branch, self-approve, or manually roll out production without authorization. Do not remove a dirty or unmerged worktree; name its exact path and branches before cleanup.
-- A scoped implementation request authorizes its branch push, ready PR, merge after required checks/review, and cleanup. Bound CPU-intensive foreground commands to 15 minutes unless longer is authorized, and stop services started for checks.
+- Skills are explicit-only when their frontmatter says so. Invoke them with `/skill:<name>`.
+- Subagents and workflows are available only during an explicitly invoked `/skill:linear-ticket-delivery <ticket>` run. Never start watchers, daemons, scheduled jobs, transcript scanners, background supervisors, or automatic follow-on work.
+- Before the first repository edit, fetch the configured default ref and create or reuse a task-owned sibling worktree and branch from it. Record the owner, canonical repo/worktree paths, branch, HEAD, fetched default SHA, and fetch time. Never edit a shared checkout or default branch; stop if safe isolation is unavailable. Never move, overwrite, or discard pre-existing uncommitted work.
+- A scoped implementation request authorizes its branch push, ready PR, and merge after required checks/review. Never force-push, push to a default branch, self-approve, or manually roll out production without authorization.
+- Before task close, refresh the default ref and revalidate identity, HEAD, dirty/in-progress state, ownership, and integration evidence. Record one disposition: `active`, `preserve-dirty`, `preserve-unmerged`, `blocked-ownership`, or `ready-for-admin-retirement-review`. Committing unexpected residue, abandoning changes, removing a worktree, or deleting a local/remote branch requires immediate structured approval naming the exact path, branch/ref, and HEAD, followed by revalidation immediately before execution. Never remove dirty, active, ambiguous, unowned, or unmerged work; never use broad prune or age-based cleanup.
+- Bound CPU-intensive foreground commands to 15 minutes unless longer is authorized, and stop services started for checks.
 
 ## Linear
 
-Use only the global `linear-direct` MCP server through Pi for every Linear read or write—never browser automation, a legacy CLI, or another Linear integration—and automatically apply `linear-ticket-operations`. In-scope search, create, edit, assignment, comments, labels, projects, status, relations, closure, archive, and restore are pre-authorized. Before creation, search for duplicates. After every mutation, read back and verify the object, then report the externally visible change.
-
-Ticket deletion always requires immediate explicit confirmation of the exact identifier and whether deletion is permanent. Never delete by title similarity. Use raw GraphQL only when no high-level operation covers the requirement, with the same deletion rule.
+Use only Pi's global `linear-direct` MCP integration and automatically apply `linear-ticket-operations`; never use browser automation, a legacy CLI, or another Linear integration. In-scope operations are pre-authorized except deletion, which requires immediate confirmation of the exact identifier and permanence. Search before creation, read back every mutation, and report the visible result.
 
 ## Credentials and security
 
-Shared credentials come only from Infisical through the repository's tracked runner. Before credential-backed work, read tracked `infisical-profiles.json` and `TOOLCHAIN.md#infisical-credential-access` when present. From the absolute Git root, the only allowed runner commands are:
-
-- `npm run check:checkout`
-- `npm run check:infisical-profiles`
-- `npm run infisical:preflight -- <bound-command>`
-- `npm run infisical:run -- <bound-command>`
-
-Preflight/run take exactly one manifest-declared bound command. Authentication is the operator's saved Infisical session; never log in or renew it pre-emptively. On `USER_LOGIN_REQUIRED`, ask the operator to log in in a normal terminal, then retry the identical command. Never request or handle passwords, tokens, or secret values. Production profiles additionally require a clean, current, non-stale, non-diverged checkout at the exact default-branch commit.
-
-Never run raw Infisical secret/export/list/debug commands, dump child environments, read `.env*`, use token/service/machine identities, recurse secret paths, import overrides, or obtain credentials from another project/environment, backups, shell history, or hosted destinations. Do not print, persist, upload, or summarize secrets. If a binding, path, permission, profile, or variable is missing, stop before child execution and request only the sanitized command/purpose/domain, nonsecret project or binding ID, environment/path, failure category, scope, and missing variable names. Reuse existing capabilities; do not create task-specific commands, paths, projects, identities, client secrets, folders, environments, or profiles. Credential access never authorizes the external action it enables.
+Before credential-backed work, load and follow `infisical-credential-access`. Never request, handle, print, persist, upload, or summarize secret values. Credential access never authorizes the external action it enables.
 
 ## Repository integrity
 
-Preserve repository `AGENTS.md`, `CLAUDE.md`, `.claude`, `.pi`, `.agents`, skills, manifests, and unrelated changes. Do not change product logic merely to install global Pi behavior. Do not enable GitHub Actions workflows or required Actions checks. Do not install competing governance or project-local MCP integrations; use the pinned global adapter.
+Preserve repository guidance, agent configuration, manifests, and unrelated changes. Do not alter product logic to install global Pi behavior, enable GitHub Actions or required Actions checks, or add competing governance/MCP integrations.
 
 For any task changing code, configuration, data, or external state, end with:
 
