@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+pi_agent_dir=${PI_AGENT_DIR:-"$HOME/.pi/agent"}
+workspace_root=${PI_WORKSPACE_ROOT:-"$HOME/Developer"}
+
+link_path() {
+  source_path=$1
+  target_path=$2
+
+  if [ -L "$target_path" ]; then
+    current=$(readlink "$target_path")
+    if [ "$current" = "$source_path" ]; then
+      printf 'ok %s\n' "$target_path"
+      return
+    fi
+    printf 'error: %s points to %s, expected %s\n' "$target_path" "$current" "$source_path" >&2
+    return 1
+  fi
+
+  if [ -e "$target_path" ]; then
+    printf 'error: refusing to overwrite existing path: %s\n' "$target_path" >&2
+    return 1
+  fi
+
+  mkdir -p "$(dirname -- "$target_path")"
+  ln -s "$source_path" "$target_path"
+  printf 'linked %s -> %s\n' "$target_path" "$source_path"
+}
+
+link_path "$repo_root/config/AGENTS.md" "$pi_agent_dir/AGENTS.md"
+link_path "$repo_root/config/Developer.AGENTS.md" "$workspace_root/AGENTS.md"
+link_path "$repo_root/extensions/tool-profiles.ts" "$pi_agent_dir/extensions/tool-profiles.ts"
+link_path "$repo_root/config/skills.README.md" "$pi_agent_dir/skills/README.md"
+link_path "$repo_root/skills/linear-ticket-delivery" "$pi_agent_dir/skills/linear-ticket-delivery"
+link_path "$repo_root/skills/linear-ticket-operations" "$pi_agent_dir/skills/linear-ticket-operations"
+
+printf 'Pi configuration links restored. Restart Pi or run /reload.\n'

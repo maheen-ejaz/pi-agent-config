@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+pi_agent_dir=${PI_AGENT_DIR:-"$HOME/.pi/agent"}
+workspace_root=${PI_WORKSPACE_ROOT:-"$HOME/Developer"}
+failures=0
+
+check_link() {
+  source_path=$1
+  target_path=$2
+
+  if [ ! -L "$target_path" ]; then
+    printf 'error: expected symlink: %s\n' "$target_path" >&2
+    failures=$((failures + 1))
+    return
+  fi
+  current=$(readlink "$target_path")
+  if [ "$current" != "$source_path" ]; then
+    printf 'error: %s points to %s, expected %s\n' "$target_path" "$current" "$source_path" >&2
+    failures=$((failures + 1))
+    return
+  fi
+  printf 'ok %s\n' "$target_path"
+}
+
+check_link "$repo_root/config/AGENTS.md" "$pi_agent_dir/AGENTS.md"
+check_link "$repo_root/config/Developer.AGENTS.md" "$workspace_root/AGENTS.md"
+check_link "$repo_root/extensions/tool-profiles.ts" "$pi_agent_dir/extensions/tool-profiles.ts"
+check_link "$repo_root/config/skills.README.md" "$pi_agent_dir/skills/README.md"
+check_link "$repo_root/skills/linear-ticket-delivery" "$pi_agent_dir/skills/linear-ticket-delivery"
+check_link "$repo_root/skills/linear-ticket-operations" "$pi_agent_dir/skills/linear-ticket-operations"
+
+if find "$repo_root" -type f \( -name 'auth.json' -o -name 'settings.json' -o -name 'mcp.json' -o -name 'models*.json' -o -name '*.jsonl' -o -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
+  printf 'error: repository contains a forbidden machine or credential file\n' >&2
+  failures=$((failures + 1))
+fi
+
+secret_pattern='(gho''_|github_pat''_|sk-[A-Za-z0-9_-]{16,}|INFISICAL_''TOKEN|BEGIN (RSA |OPENSSH )?PRIVATE KEY)'
+if grep -RIlE "$secret_pattern" --exclude-dir=.git "$repo_root" | grep -q .; then
+  printf 'error: tracked source contains a secret-like value\n' >&2
+  failures=$((failures + 1))
+fi
+
+if [ "$failures" -ne 0 ]; then
+  printf 'Pi configuration check failed: %s problem(s).\n' "$failures" >&2
+  exit 1
+fi
+
+printf 'Pi configuration check passed.\n'
