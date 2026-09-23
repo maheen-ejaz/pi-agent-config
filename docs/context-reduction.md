@@ -1,6 +1,6 @@
 # Startup-context reduction
 
-GOO-1395 reduced Pi's everyday startup context while preserving coding, web, browser, and Linear workflows.
+This configuration reduces Pi's everyday startup context while preserving common coding, web, browser, and Linear workflows.
 
 ## Measurements
 
@@ -18,6 +18,23 @@ GOO-1395 reduced Pi's everyday startup context while preserving coding, web, bro
 Tool-schema characters fell about 79.5%; reported first-request input fell about 65.3%. These are operational samples rather than a perfectly controlled benchmark. Serialized characters are not tokens. Provider `input` excludes cache reads/writes, while session totals aggregate every turn.
 
 Changing profiles appends a system/tool patch and may miss the preceding prompt cache once. Later requests can reuse the stable profile prefix.
+
+## Lean-policy and full-catalog refinement
+
+The compact governance source is 3,146 bytes, about 40% smaller than its earlier 5,254-byte version. Detailed credential procedure now lives in `infisical-credential-access`, while its trigger and non-negotiable boundary remain global. The repository contains 13 independent Pi skills.
+
+An indicative fresh no-cache CLI benchmark used the candidate global/workspace text and complete candidate catalog while retaining the same 12-tool lean startup set:
+
+| Metric | Earlier installed sample | Candidate sample |
+|---|---:|---:|
+| Tool declarations | 12 | 12 |
+| Serialized tool JSON | 7,490 chars | 7,490 chars |
+| Global/workspace instruction content | 6,473 chars | 4,777 chars |
+| Skills section | 1,047 chars | 1,468 chars |
+| Provider `input` | 3,617 tokens | 3,353 tokens |
+| Cache read/write | 0 / 0 | 0 / 0 |
+
+The candidate benchmark used CLI overrides before installation, so section placement differed (`addendum` rather than normal `project_context`). Treat the result as directional, not a controlled final A/B. Run a normal fresh-session measurement after merging and synchronizing the repository.
 
 ## Verification
 

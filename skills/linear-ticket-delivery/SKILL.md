@@ -22,9 +22,9 @@ When running in BB (`BB_THREAD_ID` and `bb` are available), rename the current
 thread after reading the ticket. Use its numeric suffix, ` - `, and an exactly
 three-word, goal-bearing summary drawn from the title, description, and acceptance
 criteria. Choose words that convey the intended action and outcome; do not simply
-truncate the title. For `GOO-1344`, use `1344 - Detect Sensitive PII`; run
-`bb thread update --self --title "1344 - Detect Sensitive PII"`, then confirm it
-with `bb thread show --json`. Outside BB, skip this step.
+truncate the title. Format the title as `<ticket-number> - <three-word summary>`;
+run `bb thread update --self --title "<ticket-number> - <three-word summary>"`,
+then confirm it with `bb thread show --json`. Outside BB, skip this step.
 
 Invoke the `grilling` skill only when missing clarity blocks completion or a material product
 or implementation decision needs admin input.
