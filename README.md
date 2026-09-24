@@ -25,6 +25,7 @@ local clone on main
           ├── ~/.pi/agent/AGENTS.md
           ├── ~/.pi/agent/skills/*
           ├── ~/.pi/agent/extensions/tool-profiles.ts
+          ├── ~/.local/bin/pi-task
           └── ~/Developer/AGENTS.md
 ```
 
@@ -41,17 +42,32 @@ bin/pi-config-restore
 bin/pi-config-check
 ```
 
-The restore command creates only missing links. It refuses to overwrite an existing file or a link to another source. Reconcile those paths deliberately, then retry.
+The restore command creates only missing links. It refuses to overwrite an existing file or a link to another source. It also installs the `pi-task` launcher at `${PI_BIN_DIR:-$HOME/.local/bin}/pi-task`; make sure that directory is on your shell `PATH`. Reconcile any conflicting path deliberately, then retry.
 
-Override installation locations when needed:
+Override installation locations when needed. Set `PI_BIN_DIR` to change where the `pi-task` command is linked:
 
 ```bash
 PI_AGENT_DIR=/path/to/pi-agent \
 PI_WORKSPACE_ROOT=/path/to/workspace \
+PI_BIN_DIR=/path/to/bin \
   bin/pi-config-restore
 ```
 
 Restart Pi or run `/reload` after installation. Existing sessions retain earlier prompt and tool checkpoints; use `/new` to validate a clean startup.
+
+## Starting isolated Git tasks
+
+From a terminal, in any directory inside a Git repository with an `origin` remote and a resolvable default branch, run:
+
+```bash
+pi-task [optional-task-slug]
+```
+
+The launcher fetches without pruning, resolves the live remote default (not a potentially stale local `origin/HEAD`), creates a unique sibling worktree and `pi/<slug>-<id>` branch from the fetched ref, records the owner, session id, paths, branch, base SHA, and time under the user's local state directory, then starts Pi in that worktree. It never switches or cleans the checkout from which it was invoked. If no slug is supplied it uses `task`.
+
+Use `pi-task --list` to find recorded tasks and `pi-task --continue <task-id>` to reopen one in its existing worktree and Pi session; continuation creates no branch. The built-in Pi `/new` command remains a conversation reset. Use `pi-task` when you mean to start a new Git coding task.
+
+The task registry is machine-local under `PI_TASK_STATE_DIR` if set, otherwise `$XDG_STATE_HOME/pi-task` if `XDG_STATE_HOME` is set, otherwise `$HOME/.local/state/pi-task`. It is not part of the public repository. If a task worktree is dirty, active, ambiguous, or no longer matches its record, preserve it and resolve that state before retirement.
 
 ## Keeping the configuration current
 
@@ -72,7 +88,7 @@ It never runs in the background. To propose a change, use a task branch/worktree
 
 ## Skill catalog
 
-The repository currently ships 13 Pi-owned skills. Some are automatically applicable; most require explicit `/skill:<name>` invocation. See the [skill catalog](skills/README.md) for triggers and boundaries.
+The repository currently ships 15 Pi-owned skills. Some are automatically applicable; most require explicit `/skill:<name>` invocation. See the [skill catalog](skills/README.md) for triggers and boundaries.
 
 Pi also scans `~/.agents/skills` when present. Same-name Pi copies under `~/.pi/agent/skills` win discovery; `pi-config-check` ensures the complete Pi catalog is installed so another harness's copy cannot become the accidental fallback.
 
@@ -103,6 +119,8 @@ The governance is intentionally strict. Treat it as a documented example, not un
 
 ```bash
 bash -n bin/pi-config-restore bin/pi-config-check bin/pi-config-sync tests/*.sh
+node --check bin/pi-task
+bash tests/pi-task-test.sh
 bash tests/restore-test.sh
 bash tests/catalog-test.sh
 bash tests/sync-test.sh

@@ -1,0 +1,323 @@
+#!/usr/bin/env node
+import { randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { access, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+const STATE_DIR = path.resolve(
+  process.env.PI_TASK_STATE_DIR ||
+    path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), ".local", "state"), "pi-task"),
+);
+const USER = (() => {
+  try {
+    return os.userInfo().username;
+  } catch {
+    return process.env.USER || "unknown";
+  }
+})();
+
+function usage() {
+  console.log(`Usage:
+  pi-task [task-slug] [-- <pi arguments...>]  Start a fresh isolated task
+  pi-task --continue <task-id> [-- <pi arguments...>]  Continue that task/session
+  pi-task --list  List task worktrees recorded on this machine
+  pi-task --help  Show this help
+
+Run from any directory inside the Git repository. New tasks use a sibling worktree
+and a new branch based on the fetched origin default branch. /new remains a Pi
+conversation reset; use pi-task for a new Git task.`);
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    encoding: "utf8",
+    env: options.env || process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error) throw new Error(`${command} could not start`);
+  if (result.status !== 0) {
+    const label = [command, ...args.slice(0, 2)].join(" ");
+    throw new Error(`${label} failed (exit ${result.status ?? "unknown"})`);
+  }
+  return result.stdout.trimEnd();
+}
+
+function tryRun(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    encoding: "utf8",
+    env: options.env || process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error || result.status !== 0) return undefined;
+  return result.stdout.trimEnd();
+}
+
+function parseArgs(argv) {
+  if (argv[0] === "--help" || argv[0] === "-h") return { mode: "help" };
+  if (argv[0] === "--list") {
+    if (argv.length !== 1) throw new Error("`pi-task --list` takes no additional arguments.");
+    return { mode: "list" };
+  }
+  if (argv[0] === "--continue") {
+    if (!argv[1] || argv[1] === "--") throw new Error("--continue requires a task id from `pi-task --list`.");
+    const separator = argv.indexOf("--", 2);
+    return {
+      mode: "continue",
+      taskId: argv[1],
+      piArgs: separator >= 0 ? argv.slice(separator + 1) : argv.slice(2),
+    };
+  }
+  const separator = argv.indexOf("--");
+  const ownArgs = separator >= 0 ? argv.slice(0, separator) : argv;
+  const piArgs = separator >= 0 ? argv.slice(separator + 1) : [];
+  if (ownArgs.length > 1 || ownArgs.some((arg) => arg.startsWith("-"))) {
+    throw new Error("Expected at most one task slug; put Pi options after `--`. See `pi-task --help`.");
+  }
+  return { mode: "new", slug: ownArgs[0] || "task", piArgs };
+}
+
+function normalizeSlug(value) {
+  const slug = value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^[-.]+|[-.]+$/g, "");
+  if (!slug || slug.length > 48) throw new Error("Task slug must contain 1-48 letters, digits, dots, underscores, or hyphens.");
+  return slug;
+}
+
+function parseWorktrees(text) {
+  const result = [];
+  let item = {};
+  for (const line of text.split("\n")) {
+    if (!line) {
+      if (item.worktree) result.push(item);
+      item = {};
+      continue;
+    }
+    const split = line.indexOf(" ");
+    const key = split < 0 ? line : line.slice(0, split);
+    const value = split < 0 ? "" : line.slice(split + 1);
+    if (key === "worktree") item.worktree = value;
+    else if (key === "branch") item.branch = value;
+    else if (key === "bare") item.bare = true;
+    else if (key === "detached") item.detached = true;
+  }
+  if (item.worktree) result.push(item);
+  return result;
+}
+
+async function records() {
+  let names;
+  try {
+    names = await readdir(STATE_DIR);
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+  const rows = [];
+  for (const name of names.filter((entry) => entry.endsWith(".json")).sort()) {
+    try {
+      const value = JSON.parse(await readFile(path.join(STATE_DIR, name), "utf8"));
+      if (value.schema === 1 && value.taskId && value.worktreePath && value.branch) rows.push(value);
+    } catch {
+      // Ignore a malformed local record; never use it to address a worktree.
+    }
+  }
+  return rows;
+}
+
+function taskRecordPath(taskId) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,90}$/.test(taskId)) throw new Error("Invalid task id.");
+  return path.join(STATE_DIR, `${taskId}.json`);
+}
+
+async function writeRecord(record) {
+  await mkdir(STATE_DIR, { recursive: true, mode: 0o700 });
+  const target = taskRecordPath(record.taskId);
+  const temp = `${target}.${process.pid}.tmp`;
+  await writeFile(temp, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+  await rename(temp, target);
+}
+
+function launchPi(cwd, sessionId, piArgs) {
+  const args = ["--session-id", sessionId, ...piArgs];
+  const child = spawnSync("pi", args, { cwd, env: process.env, stdio: "inherit" });
+  if (child.error) throw new Error(`Could not start Pi from ${cwd}; the worktree is preserved.`);
+  return child.status ?? 1;
+}
+
+async function runRecordedTask(record, piArgs) {
+  record.state = "active";
+  record.lastStartedAt = new Date().toISOString();
+  await writeRecord(record);
+  let exitCode;
+  try {
+    exitCode = launchPi(record.worktreePath, record.sessionId, piArgs);
+  } catch (error) {
+    record.state = "paused";
+    record.lastLaunchError = "pi_start_failed";
+    record.lastStoppedAt = new Date().toISOString();
+    await writeRecord(record);
+    throw error;
+  }
+  record.state = "paused";
+  record.lastExitCode = exitCode;
+  record.lastStoppedAt = new Date().toISOString();
+  await writeRecord(record);
+  process.exitCode = exitCode;
+}
+
+async function runNew(slugInput, piArgs) {
+  const currentRoot = run("git", ["rev-parse", "--show-toplevel"], { cwd: process.cwd() });
+  const remotes = run("git", ["remote"], { cwd: currentRoot }).split(/\r?\n/);
+  if (!remotes.includes("origin")) throw new Error("This repository has no `origin` remote; no worktree was created.");
+
+  try {
+    run("git", ["fetch", "--no-prune", "origin"], { cwd: currentRoot });
+  } catch {
+    throw new Error("Could not fetch origin. Check Git access in your normal terminal; no worktree was created.");
+  }
+
+  const symref = tryRun("git", ["ls-remote", "--symref", "origin", "HEAD"], { cwd: currentRoot });
+  const match = symref?.match(/^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/m);
+  if (!match) throw new Error("Could not determine origin's current default branch; no worktree was created.");
+  const defaultBranch = match[1];
+  if (tryRun("git", ["check-ref-format", `refs/heads/${defaultBranch}`], { cwd: currentRoot }) === undefined) {
+    throw new Error("origin reports an invalid default branch ref; no worktree was created.");
+  }
+  const defaultRef = `origin/${defaultBranch}`;
+  try {
+    run("git", ["fetch", "--no-prune", "origin", `refs/heads/${defaultBranch}:refs/remotes/origin/${defaultBranch}`], { cwd: currentRoot });
+  } catch {
+    throw new Error("Could not fetch origin's current default branch; no worktree was created.");
+  }
+  const verifiedSymref = tryRun("git", ["ls-remote", "--symref", "origin", "HEAD"], { cwd: currentRoot });
+  const verifiedMatch = verifiedSymref?.match(/^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/m);
+  const remoteHeadSha = verifiedSymref?.match(/^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})\s+HEAD$/m)?.[1];
+  if (!verifiedMatch || verifiedMatch[1] !== defaultBranch || !remoteHeadSha) {
+    throw new Error("origin's default branch changed during setup; retry after reviewing the remote state. No worktree was created.");
+  }
+
+  const defaultSha = tryRun("git", ["rev-parse", "--verify", `${defaultRef}^{commit}`], { cwd: currentRoot });
+  if (!defaultSha) throw new Error(`Fetched default ref ${defaultRef} is unavailable; no worktree was created.`);
+  if (defaultSha.toLowerCase() !== remoteHeadSha.toLowerCase()) {
+    throw new Error("origin's default branch advanced during setup; retry to fetch the latest SHA. No worktree was created.");
+  }
+  const fetchedAt = new Date().toISOString();
+  const slug = normalizeSlug(slugInput);
+  const suffix = randomBytes(4).toString("hex");
+  const taskId = `task-${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}-${suffix}`;
+  if (await pathExists(taskRecordPath(taskId))) throw new Error("Generated task id already has a local record; retry to generate a new id.");
+  const branch = `pi/${slug}-${suffix}`;
+  if (!tryRun("git", ["check-ref-format", "--branch", branch], { cwd: currentRoot })) {
+    throw new Error("Generated branch name is invalid; no worktree was created.");
+  }
+  if (tryRun("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], { cwd: currentRoot }) !== undefined) {
+    throw new Error(`Branch ${branch} already exists; no worktree was created.`);
+  }
+  const remoteBranch = tryRun("git", ["ls-remote", "--heads", "origin", `refs/heads/${branch}`], { cwd: currentRoot });
+  if (remoteBranch === undefined) throw new Error("Could not verify whether the generated branch exists remotely; no worktree was created.");
+  if (remoteBranch) throw new Error(`Branch ${branch} already exists on origin; no worktree was created.`);
+
+  const worktrees = parseWorktrees(run("git", ["worktree", "list", "--porcelain"], { cwd: currentRoot }));
+  const defaultWorktree = worktrees.find((item) => item.branch === `refs/heads/${defaultBranch}`);
+  const commonDir = run("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: currentRoot });
+  const fallbackRoot = path.basename(commonDir) === ".git" ? path.dirname(commonDir) : currentRoot;
+  const anchor = defaultWorktree?.worktree || fallbackRoot;
+  const repositoryName = path.basename(anchor);
+  const worktreePath = path.join(path.dirname(anchor), `${repositoryName}-${slug}-${suffix}`);
+  if (worktrees.some((item) => path.resolve(item.worktree) === path.resolve(worktreePath))) {
+    throw new Error("The generated worktree path is already registered; no worktree was created.");
+  }
+  if (await pathExists(worktreePath)) throw new Error(`The target path already exists: ${worktreePath}; no worktree was created.`);
+
+  try {
+    run("git", ["worktree", "add", "-b", branch, worktreePath, defaultSha], { cwd: currentRoot });
+  } catch {
+    throw new Error(`Git could not create ${worktreePath} from ${defaultRef} @ ${defaultSha}; no existing work was changed.`);
+  }
+  const head = run("git", ["rev-parse", "HEAD"], { cwd: worktreePath });
+  const record = {
+    schema: 1,
+    taskId,
+    sessionId: taskId,
+    owner: USER,
+    repoPath: fallbackRoot,
+    worktreePath,
+    branch,
+    headAtStart: head,
+    defaultRef,
+    defaultSha,
+    fetchedAt,
+    createdAt: new Date().toISOString(),
+    state: "paused",
+  };
+  try {
+    await writeRecord(record);
+  } catch {
+    throw new Error(`Worktree was created at ${worktreePath}, but its local task record could not be written. Preserve it and record its owner/path/branch/HEAD manually; Pi was not started.`);
+  }
+  if (head.toLowerCase() !== defaultSha.toLowerCase()) {
+    record.setupError = "base_sha_mismatch";
+    await writeRecord(record);
+    throw new Error(`Worktree was created at ${worktreePath} on ${branch} @ ${head}, not the expected base ${defaultRef} @ ${defaultSha}. It is preserved; Pi was not started.`);
+  }
+
+  console.log(`Task worktree ready\n  owner: ${USER}\n  task id: ${taskId}\n  repository: ${fallbackRoot}\n  worktree: ${worktreePath}\n  branch: ${branch}\n  HEAD: ${head}\n  base: ${defaultRef} @ ${defaultSha}\n  fetched: ${record.fetchedAt}`);
+  await runRecordedTask(record, piArgs);
+}
+
+async function runContinue(taskId, piArgs) {
+  const file = taskRecordPath(taskId);
+  let record;
+  try {
+    record = JSON.parse(await readFile(file, "utf8"));
+  } catch {
+    throw new Error(`No task record found for ${taskId}. Use pi-task --list to see recorded tasks.`);
+  }
+  if (record.schema !== 1 || record.taskId !== taskId || record.sessionId !== taskId || !record.worktreePath || !record.branch) {
+    throw new Error("Task record is invalid; no Pi process was started.");
+  }
+  if (record.setupError) throw new Error(`Task setup did not complete (${record.setupError}); inspect the preserved worktree before continuing.`);
+  if (!(await pathExists(record.worktreePath))) throw new Error(`Recorded worktree is missing: ${record.worktreePath}`);
+  const actualRoot = run("git", ["rev-parse", "--show-toplevel"], { cwd: record.worktreePath });
+  const actualBranch = run("git", ["branch", "--show-current"], { cwd: record.worktreePath });
+  const listed = parseWorktrees(run("git", ["worktree", "list", "--porcelain"], { cwd: record.worktreePath }));
+  if (path.resolve(actualRoot) !== path.resolve(record.worktreePath) || actualBranch !== record.branch ||
+      !listed.some((item) => path.resolve(item.worktree) === path.resolve(record.worktreePath) && item.branch === `refs/heads/${record.branch}`)) {
+    throw new Error("Recorded worktree identity no longer matches; no Pi process was started.");
+  }
+  console.log(`Continuing task ${taskId} in ${record.worktreePath} on ${record.branch}; no new branch will be created.`);
+  await runRecordedTask(record, piArgs);
+}
+
+async function listTasks() {
+  const rows = await records();
+  if (rows.length === 0) {
+    console.log("No pi-task worktrees are recorded.");
+    return;
+  }
+  for (const row of rows) {
+    console.log(`${row.taskId}\t${row.state || "unknown"}\t${row.branch}\t${row.worktreePath}\towner=${row.owner || "unknown"}`);
+  }
+}
+
+async function pathExists(target) {
+  try {
+    await access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+try {
+  const parsed = parseArgs(process.argv.slice(2));
+  if (parsed.mode === "help") usage();
+  else if (parsed.mode === "list") await listTasks();
+  else if (parsed.mode === "continue") await runContinue(parsed.taskId, parsed.piArgs);
+  else await runNew(parsed.slug, parsed.piArgs);
+} catch (error) {
+  console.error(`pi-task: ${error.message}`);
+  process.exitCode = 1;
+}
