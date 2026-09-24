@@ -1,5 +1,6 @@
 .DS_Store
 __pycache__/
+.pi-subagents/
 *.py[cod]
 *.log
 *.tmp

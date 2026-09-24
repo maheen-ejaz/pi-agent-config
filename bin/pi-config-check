@@ -94,7 +94,13 @@ if ! cmp -s "$manifest_tmp/catalog" "$manifest_tmp/actual" || \
   failures=$((failures + 1))
 fi
 
-if find "$repo_root" -type f \( -name 'auth.json' -o -name 'settings.json' -o -name 'mcp.json' -o -name 'models*.json' -o -name '*.jsonl' -o -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
+# The subagent package writes runtime transcripts under .pi-subagents/. Ignore that
+# untracked directory during source scans, but reject anything staged or tracked there.
+if [ -n "$(git -C "$repo_root" ls-files --cached -- .pi-subagents)" ]; then
+  printf 'error: subagent runtime artifacts must not be tracked by Git\n' >&2
+  failures=$((failures + 1))
+fi
+if find "$repo_root" \( -path "$repo_root/.git" -o -path "$repo_root/.pi-subagents" \) -prune -o -type f \( -name 'auth.json' -o -name 'settings.json' -o -name 'mcp.json' -o -name 'models*.json' -o -name '*.jsonl' -o -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
   printf 'error: repository contains a forbidden machine or credential file\n' >&2
   failures=$((failures + 1))
 fi
@@ -113,8 +119,10 @@ if find "$repo_root/skills" -type f -path '*/agents/openai.yaml' -print -quit | 
 fi
 
 secret_pattern='(gho''_|github_pat''_|sk-[A-Za-z0-9_-]{16,}|INFISICAL_''TOKEN|BEGIN (RSA |OPENSSH )?PRIVATE KEY)'
-if grep -RIlE "$secret_pattern" --exclude-dir=.git "$repo_root" | grep -q .; then
-  printf 'error: tracked source contains a secret-like value\n' >&2
+# Print at most one match: grep -q downstream of a many-match producer can
+# SIGPIPE that producer under pipefail and incorrectly turn a finding into pass.
+if find "$repo_root" \( -path "$repo_root/.git" -o -path "$repo_root/.pi-subagents" \) -prune -o -type f -exec grep -qE "$secret_pattern" {} \; -print -quit | grep -q .; then
+  printf 'error: repository contains a secret-like value\n' >&2
   failures=$((failures + 1))
 fi
 
