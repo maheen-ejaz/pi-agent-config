@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 pi_agent_dir=${PI_AGENT_DIR:-"$HOME/.pi/agent"}
 workspace_root=${PI_WORKSPACE_ROOT:-"$HOME/Developer"}
+pi_bin_dir=${PI_BIN_DIR:-"$HOME/.local/bin"}
 
 while IFS= read -r skill_name; do
   [ -n "$skill_name" ] || continue
@@ -47,6 +48,7 @@ link_path "$repo_root/config/AGENTS.md" "$pi_agent_dir/AGENTS.md"
 link_path "$repo_root/config/Developer.AGENTS.md" "$workspace_root/AGENTS.md"
 link_path "$repo_root/extensions/tool-profiles.ts" "$pi_agent_dir/extensions/tool-profiles.ts"
 link_path "$repo_root/config/skills.README.md" "$pi_agent_dir/skills/README.md"
+link_path "$repo_root/bin/pi-task" "$pi_bin_dir/pi-task"
 
 while IFS= read -r skill_name; do
   [ -n "$skill_name" ] || continue
@@ -58,4 +60,4 @@ while IFS= read -r skill_name; do
   link_path "$skill_source" "$pi_agent_dir/skills/$skill_name"
 done < "$repo_root/skills/catalog.txt"
 
-printf 'Pi configuration links restored. Restart Pi or run /reload.\n'
+printf 'Pi configuration links restored. pi-task is linked at %s/pi-task. Restart Pi or run /reload.\n' "$pi_bin_dir"
