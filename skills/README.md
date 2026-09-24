@@ -12,10 +12,12 @@ Each directory is an independent Pi-facing skill. Pi loads only names and descri
 | `infisical-credential-access` | Automatic when relevant | Enforce repository-declared secret access boundaries |
 | `linear-ticket-delivery` | Explicit | Deliver one Linear ticket through verified completion |
 | `linear-ticket-operations` | Automatic for Linear work | Standardize all Linear reads and mutations through `linear-direct` |
+| `main-sync` | Explicit | Inspect and safely fast-forward a canonical main checkout |
 | `repo-audit` | Explicit | Run bounded daily, weekly, or report-mode repository audits |
 | `resolving-merge-conflicts` | Explicit | Resolve real Git conflicts while preserving both intents |
 | `tdd` | Explicit | Run strict red-green-refactor development |
 | `wayfinder` | Explicit | Map a large ambiguous effort without implementing it |
+| `worktree-retire` | Explicit | Inventory and safely retire one verified Git worktree |
 | `writing-for-agents` | Explicit | Write concise agent-facing instruction sets |
 
 Explicit skills declare `disable-model-invocation: true` and are invoked with:

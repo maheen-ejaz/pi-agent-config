@@ -16,6 +16,8 @@ From the repository root run:
 
 ```bash
 bash -n bin/pi-config-restore bin/pi-config-check bin/pi-config-sync tests/*.sh
+node --check bin/pi-task
+bash tests/pi-task-test.sh
 bash tests/restore-test.sh
 bash tests/catalog-test.sh
 bash tests/sync-test.sh

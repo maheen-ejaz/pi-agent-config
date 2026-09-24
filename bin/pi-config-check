@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 pi_agent_dir=${PI_AGENT_DIR:-"$HOME/.pi/agent"}
 workspace_root=${PI_WORKSPACE_ROOT:-"$HOME/Developer"}
+pi_bin_dir=${PI_BIN_DIR:-"$HOME/.local/bin"}
 failures=0
 check_installed_links=true
 
@@ -36,6 +37,7 @@ if $check_installed_links; then
   check_link "$repo_root/config/Developer.AGENTS.md" "$workspace_root/AGENTS.md"
   check_link "$repo_root/extensions/tool-profiles.ts" "$pi_agent_dir/extensions/tool-profiles.ts"
   check_link "$repo_root/config/skills.README.md" "$pi_agent_dir/skills/README.md"
+  check_link "$repo_root/bin/pi-task" "$pi_bin_dir/pi-task"
 fi
 
 manifest_tmp=$(mktemp -d "${TMPDIR:-/tmp}/pi-config-check.XXXXXX")
@@ -102,6 +104,15 @@ if find "$repo_root" \( -path "$repo_root/.git" -o -path "$repo_root/.pi-subagen
   printf 'error: repository contains a forbidden machine or credential file\n' >&2
   failures=$((failures + 1))
 fi
+if [ ! -x "$repo_root/bin/pi-task" ]; then
+  printf 'error: expected executable task launcher: %s\n' "$repo_root/bin/pi-task" >&2
+  failures=$((failures + 1))
+fi
+if ! git -C "$repo_root" ls-files --error-unmatch -- bin/pi-task >/dev/null 2>&1; then
+  printf 'error: task launcher is not tracked by Git: %s\n' "$repo_root/bin/pi-task" >&2
+  failures=$((failures + 1))
+fi
+
 if find "$repo_root/skills" -type f -path '*/agents/openai.yaml' -print -quit | grep -q .; then
   printf 'error: Pi skills must not include OpenAI-agent metadata files\n' >&2
   failures=$((failures + 1))
