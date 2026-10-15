@@ -23,6 +23,16 @@ Avoid copying the same rule across layers. Pi concatenates applicable instructio
 
 Do not copy a skill from another agent harness without reviewing its tools, syntax, authorization boundaries, and side effects.
 
+## Bridging a canonical shared skill
+
+Shared cross-harness skills are not Pi-owned copies. The restore script may link a
+shared skill into Pi only when its exact name is listed in
+`config/shared-skills.txt`; its source must already exist under
+`$HOME/.agents/skills/<name>/SKILL.md`. The checker rejects collisions with the
+Pi-owned catalog and verifies the direct symlink. Keep this allowlist minimal;
+do not copy shared skill contents into `skills/` or expose unrelated shared
+skills to Pi.
+
 ## Adapting optional integrations
 
 Some included workflows assume external capabilities such as the BB CLI, a `linear-direct` MCP server, or a repository-declared Infisical runner. This repository describes those boundaries but does not install the tools or include their credentials and machine-specific bindings. If your setup differs, customize or disable the relevant workflow before relying on it; do not add local secrets or launcher paths to this public repository.

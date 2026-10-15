@@ -2,7 +2,7 @@
 
 ## Restore refuses an existing path
 
-This is intentional. Compare the existing file with the tracked source, preserve any unique content, then remove or relocate it deliberately before rerunning restore. The script never decides ownership for you.
+This is intentional. Compare the existing file with the tracked source, preserve any unique content, then remove or relocate it deliberately before rerunning full restore. The script never decides ownership for you. If only the shared GitHub issue skills are needed, use `bin/pi-config-restore --shared-skills-only`; it leaves all other configuration links untouched.
 
 ## Check reports a wrong symlink
 
@@ -18,7 +18,7 @@ Local `main` contains commits not represented by `origin/main`. Review the graph
 
 ## Pi reports duplicate skill names
 
-Pi also scans `~/.agents/skills`. The Pi copy under `~/.pi/agent/skills` should win. Run `bin/pi-config-check` to confirm every catalogued Pi copy is installed. Do not delete Pi skills simply to remove the warning.
+Run `bin/pi-config-check` to confirm Pi-owned skills and the two allowlisted shared issue-skill symlinks are installed at their exact targets. Restore rejects name collisions and will not replace an existing path; inspect that exact path before resolving it. Do not add unrelated shared skills or delete Pi-owned skills to suppress a collision.
 
 ## A configuration change is not visible
 

@@ -5,20 +5,71 @@ repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 pi_agent_dir=${PI_AGENT_DIR:-"$HOME/.pi/agent"}
 workspace_root=${PI_WORKSPACE_ROOT:-"$HOME/Developer"}
 pi_bin_dir=${PI_BIN_DIR:-"$HOME/.local/bin"}
+shared_skill_root="$HOME/.agents/skills"
+shared_skills_only=false
 
+if [ "$#" -gt 1 ]; then
+  printf 'usage: %s [--shared-skills-only]\n' "$0" >&2
+  exit 2
+fi
+if [ "$#" -eq 1 ]; then
+  if [ "$1" != '--shared-skills-only' ]; then
+    printf 'usage: %s [--shared-skills-only]\n' "$0" >&2
+    exit 2
+  fi
+  shared_skills_only=true
+fi
+
+if ! $shared_skills_only; then
+  while IFS= read -r skill_name; do
+    [ -n "$skill_name" ] || continue
+    case $skill_name in
+      *[!a-z0-9-]*)
+        printf 'error: invalid skill name in catalog: %s\n' "$skill_name" >&2
+        exit 1
+        ;;
+    esac
+    if [ ! -f "$repo_root/skills/$skill_name/SKILL.md" ]; then
+      printf 'error: catalogued skill is missing SKILL.md: %s\n' "$skill_name" >&2
+      exit 1
+    fi
+  done < "$repo_root/skills/catalog.txt"
+fi
+
+if [ ! -f "$repo_root/config/shared-skills.txt" ]; then
+  printf 'error: missing shared skills allowlist: %s\n' "$repo_root/config/shared-skills.txt" >&2
+  exit 1
+fi
+if ! git -C "$repo_root" ls-files --error-unmatch -- config/shared-skills.txt >/dev/null 2>&1; then
+  printf 'error: shared skills allowlist is not tracked by Git: config/shared-skills.txt\n' >&2
+  exit 1
+fi
+shared_skill_seen=' '
 while IFS= read -r skill_name; do
   [ -n "$skill_name" ] || continue
   case $skill_name in
     *[!a-z0-9-]*)
-      printf 'error: invalid skill name in catalog: %s\n' "$skill_name" >&2
+      printf 'error: invalid shared skill name: %s\n' "$skill_name" >&2
       exit 1
       ;;
   esac
-  if [ ! -f "$repo_root/skills/$skill_name/SKILL.md" ]; then
-    printf 'error: catalogued skill is missing SKILL.md: %s\n' "$skill_name" >&2
+  case "$shared_skill_seen" in
+    *" $skill_name "*)
+      printf 'error: duplicate shared skill name: %s\n' "$skill_name" >&2
+      exit 1
+      ;;
+  esac
+  if grep -Fxq "$skill_name" "$repo_root/skills/catalog.txt"; then
+    printf 'error: shared skill overlaps Pi-owned catalog: %s\n' "$skill_name" >&2
     exit 1
   fi
-done < "$repo_root/skills/catalog.txt"
+  skill_source="$shared_skill_root/$skill_name"
+  if [ ! -f "$skill_source/SKILL.md" ]; then
+    printf 'error: canonical shared skill is missing SKILL.md: %s\n' "$skill_source" >&2
+    exit 1
+  fi
+  shared_skill_seen="$shared_skill_seen$skill_name "
+done < "$repo_root/config/shared-skills.txt"
 
 link_path() {
   source_path=$1
@@ -44,20 +95,61 @@ link_path() {
   printf 'linked %s -> %s\n' "$target_path" "$source_path"
 }
 
-link_path "$repo_root/config/AGENTS.md" "$pi_agent_dir/AGENTS.md"
-link_path "$repo_root/config/Developer.AGENTS.md" "$workspace_root/AGENTS.md"
-link_path "$repo_root/extensions/tool-profiles.ts" "$pi_agent_dir/extensions/tool-profiles.ts"
-link_path "$repo_root/config/skills.README.md" "$pi_agent_dir/skills/README.md"
-link_path "$repo_root/bin/pi-task" "$pi_bin_dir/pi-task"
+preflight_link_path() {
+  source_path=$1
+  target_path=$2
+
+  if [ -L "$target_path" ]; then
+    current=$(readlink "$target_path")
+    if [ "$current" = "$source_path" ]; then
+      return 0
+    fi
+    printf 'error: %s points to %s, expected %s\n' "$target_path" "$current" "$source_path" >&2
+    return 1
+  fi
+
+  if [ -e "$target_path" ]; then
+    printf 'error: refusing to overwrite existing path: %s\n' "$target_path" >&2
+    return 1
+  fi
+  return 0
+}
 
 while IFS= read -r skill_name; do
   [ -n "$skill_name" ] || continue
-  skill_source="$repo_root/skills/$skill_name"
-  if [ ! -f "$skill_source/SKILL.md" ]; then
-    printf 'error: catalogued skill is missing SKILL.md: %s\n' "$skill_name" >&2
+  if ! preflight_link_path "$shared_skill_root/$skill_name" "$pi_agent_dir/skills/$skill_name"; then
     exit 1
   fi
-  link_path "$skill_source" "$pi_agent_dir/skills/$skill_name"
-done < "$repo_root/skills/catalog.txt"
+done < "$repo_root/config/shared-skills.txt"
 
-printf 'Pi configuration links restored. pi-task is linked at %s/pi-task. Restart Pi or run /reload.\n' "$pi_bin_dir"
+if ! $shared_skills_only; then
+  link_path "$repo_root/config/AGENTS.md" "$pi_agent_dir/AGENTS.md"
+  link_path "$repo_root/config/Developer.AGENTS.md" "$workspace_root/AGENTS.md"
+  link_path "$repo_root/extensions/tool-profiles.ts" "$pi_agent_dir/extensions/tool-profiles.ts"
+  link_path "$repo_root/config/skills.README.md" "$pi_agent_dir/skills/README.md"
+  link_path "$repo_root/bin/pi-task" "$pi_bin_dir/pi-task"
+fi
+
+if ! $shared_skills_only; then
+  while IFS= read -r skill_name; do
+    [ -n "$skill_name" ] || continue
+    skill_source="$repo_root/skills/$skill_name"
+    if [ ! -f "$skill_source/SKILL.md" ]; then
+      printf 'error: catalogued skill is missing SKILL.md: %s\n' "$skill_name" >&2
+      exit 1
+    fi
+    link_path "$skill_source" "$pi_agent_dir/skills/$skill_name"
+  done < "$repo_root/skills/catalog.txt"
+fi
+
+while IFS= read -r skill_name; do
+  [ -n "$skill_name" ] || continue
+  skill_source="$shared_skill_root/$skill_name"
+  link_path "$skill_source" "$pi_agent_dir/skills/$skill_name"
+done < "$repo_root/config/shared-skills.txt"
+
+if $shared_skills_only; then
+  printf 'Canonical shared GitHub issue skills linked into %s/skills. Restart Pi or run /reload.\n' "$pi_agent_dir"
+else
+  printf 'Pi configuration links restored. pi-task is linked at %s/pi-task. Restart Pi or run /reload.\n' "$pi_bin_dir"
+fi

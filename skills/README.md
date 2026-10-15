@@ -26,6 +26,6 @@ Explicit skills declare `disable-model-invocation: true` and are invoked with:
 /skill:<name> [arguments]
 ```
 
-The complete install list lives in [`catalog.txt`](catalog.txt). Restore and check scripts use that manifest rather than discovering arbitrary directories.
+The complete list of independently owned Pi skills lives in [`catalog.txt`](catalog.txt). Restore and check scripts use that manifest rather than discovering arbitrary directories. Two canonical shared GitHub issue skills are bridged separately by [`config/shared-skills.txt`](../config/shared-skills.txt); they are not part of this Pi-owned catalog.
 
 See [`SOURCES.md`](SOURCES.md) for initial provenance. These copies now evolve independently from Codex and Claude Code versions.
