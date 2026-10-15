@@ -8,13 +8,26 @@ This is the cross-project policy layer. A nearer `AGENTS.md` may add project fac
 - Define acceptance criteria before behavior changes. Make the smallest complete change, preserve unrelated work, run deterministic checks, and review the final diff.
 - Skills are explicit-only when their frontmatter says so. Invoke them with `/skill:<name>`.
 - Use `pi-task [slug]` from a terminal to start a new Git coding task: it fetches the remote default, creates a sibling worktree and fresh task branch, records the task/session identity locally, and starts Pi in that worktree. Do not invoke it as a shell tool from an already-running Pi session. `pi-task --continue <task-id>` resumes that task without creating another branch. Built-in `/new` resets the conversation only; it does not start a new Git task. If a coding task begins in an already-running session, still create or reuse its task worktree before the first edit.
-- Subagents and workflows from `@davecodes/pi-subagents` are available only during an explicitly invoked `/skill:linear-ticket-delivery <ticket>` run; its bundled proactive-delegation guidance does not override this boundary. Within that workflow, use its `pi-subagents` skill and `subagent` API. Never start watchers, daemons, scheduled jobs, transcript scanners, background supervisors, or automatic follow-on work.
+- Subagents and workflows from `@davecodes/pi-subagents` are available only during an explicitly invoked `/skill:linear-ticket-delivery <ticket>` or `/skill:github-issue-delivery <issue>` run; its bundled proactive-delegation guidance does not override this boundary. Within that workflow, use its `pi-subagents` skill and `subagent` API. Never start watchers, daemons, scheduled jobs, transcript scanners, background supervisors, or automatic follow-on work.
 - Before the first repository edit, fetch the configured default ref and create or reuse a task-owned sibling worktree and branch from it. Record the owner, canonical repo/worktree paths, branch, HEAD, fetched default SHA, and fetch time. Never edit a shared checkout or default branch; stop if safe isolation is unavailable. Never move, overwrite, or discard pre-existing uncommitted work.
 - A scoped implementation request authorizes its branch push, ready PR, and merge after required checks/review. Never force-push, push to a default branch, self-approve, or manually roll out production without authorization.
 - Before task close, refresh the default ref and revalidate identity, HEAD, dirty/in-progress state, ownership, and integration evidence. Record one disposition: `active`, `preserve-dirty`, `preserve-unmerged`, `blocked-ownership`, or `ready-for-admin-retirement-review`. Committing unexpected residue, abandoning changes, removing a worktree, or deleting a local/remote branch requires immediate structured approval naming the exact path, branch/ref, and HEAD, followed by revalidation immediately before execution. Never remove dirty, active, ambiguous, unowned, or unmerged work; never use broad prune or age-based cleanup.
 - Bound CPU-intensive foreground commands to 15 minutes unless longer is authorized, and stop services started for checks.
 
-## Linear
+## Issue tracking
+
+In a shared installation, the canonical guidance and tracker registry under
+`~/.agents` own current tracker routing. Follow the repository's confirmed cutover
+state: `migrating` keeps Linear authoritative; `github` uses GitHub Issues. Use
+the shared `github-issue-operations` skill for GitHub issues and explicitly invoke
+`/skill:github-issue-delivery <owner/repo#number-or-URL>` for delivery. Use supported
+native GitHub tools or the installed `gh` CLI without reading credentials.
+Resolve legacy identifiers through the shared migration map; never guess a GitHub
+number from a Linear number. Keep Linear connected while migration or support
+verification remains pending. This repository does not carry private mappings,
+source tickets, or hosted credentials.
+
+## Linear compatibility
 
 Use only Pi's global `linear-direct` MCP integration and automatically apply `linear-ticket-operations`; never use browser automation, a legacy CLI, or another Linear integration. In-scope operations are pre-authorized except deletion, which requires immediate confirmation of the exact identifier and permanence. Search before creation, read back every mutation, and report the visible result.
 

@@ -33,7 +33,15 @@ The tracked files are the source of truth. Pi reads them through symlinks, so th
 
 ## Quick start
 
-Requirements: Git, Bash, and an installed Pi coding agent. Some workflows also assume optional tools such as the BB CLI, a Linear MCP integration, or a repository-managed Infisical runner; restore does not install or configure them. See [customization guidance](docs/customizing.md) before relying on those workflows.
+Requirements: Git, Bash, and an installed Pi coding agent. Some workflows also assume optional tools such as the BB CLI, GitHub tools or `gh`, a retained Linear MCP integration, or a repository-managed Infisical runner; restore does not install or configure them. See [customization guidance](docs/customizing.md) before relying on those workflows.
+
+For shared installations, the canonical tracker registry and migration map in
+`~/.agents` determine whether a repository uses Linear or GitHub Issues. Shared
+GitHub issue skills remain in that canonical skill source; this public repository
+does not duplicate them or include private issue history. A `migrating` entry
+keeps Linear authoritative until its import and applicable support cutover pass.
+Invoke `/skill:github-issue-delivery <owner/repo#number-or-URL>` only after reading
+that shared skill. Retain the Linear integration until verification is complete.
 
 ```bash
 git clone https://github.com/maheen-ejaz/pi-agent-config.git ~/Developer/pi-agent-config

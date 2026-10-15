@@ -1,6 +1,6 @@
 # Developer workspace guidance
 
-This layer applies to repositories under `~/Developer`. Global security, credential, Linear, and delivery policy lives in `~/.pi/agent/AGENTS.md`; do not copy it into repositories.
+This layer applies to repositories under `~/Developer`. Global security, credential, issue-tracker routing, and delivery policy lives in `~/.pi/agent/AGENTS.md`; do not copy it into repositories.
 
 ## Repository instruction contract
 
