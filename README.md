@@ -8,6 +8,7 @@ The repository is public so you can inspect every instruction sent to Pi, review
 
 - Global and workspace `AGENTS.md` guidance
 - Independent Pi copies of the complete skill catalog
+- Explicit symlink bridges for the two canonical shared GitHub issue skills
 - User-owned Pi extensions
 - Restore, validation, and explicit synchronization commands
 - Explanatory documentation and context measurements
@@ -24,6 +25,8 @@ local clone on main
           │  fail-closed symlinks
           ├── ~/.pi/agent/AGENTS.md
           ├── ~/.pi/agent/skills/*
+          │     ├── github-issue-operations -> ~/.agents/skills/github-issue-operations
+          │     └── github-issue-delivery   -> ~/.agents/skills/github-issue-delivery
           ├── ~/.pi/agent/extensions/tool-profiles.ts
           ├── ~/.local/bin/pi-task
           └── ~/Developer/AGENTS.md
@@ -38,8 +41,11 @@ Requirements: Git, Bash, and an installed Pi coding agent. Some workflows also a
 For shared installations, the canonical tracker registry and migration map in
 `~/.agents` determine whether a repository uses Linear or GitHub Issues. Shared
 GitHub issue skills remain in that canonical skill source; this public repository
-does not duplicate them or include private issue history. A `migrating` entry
-keeps Linear authoritative until its import and applicable support cutover pass.
+does not duplicate their contents or include private issue history. The
+maintained Pi launcher disables general skill discovery, so restore bridges
+exactly the two names in `config/shared-skills.txt` into Pi's user skill
+directory as symlinks. A `migrating` entry keeps Linear authoritative until its
+import and applicable support cutover pass.
 Invoke `/skill:github-issue-delivery <owner/repo#number-or-URL>` only after reading
 that shared skill. Retain the Linear integration until verification is complete.
 
@@ -51,6 +57,12 @@ bin/pi-config-check
 ```
 
 The restore command creates only missing links. It refuses to overwrite an existing file or a link to another source. It also installs the `pi-task` launcher at `${PI_BIN_DIR:-$HOME/.local/bin}/pi-task`; make sure that directory is on your shell `PATH`. Reconcile any conflicting path deliberately, then retry.
+
+If an existing Pi installation owns its guidance, extension, or `pi-task`
+symlinks through another canonical setup, use
+`bin/pi-config-restore --shared-skills-only` and
+`bin/pi-config-check --shared-skills-only` to add and verify only the two shared
+GitHub issue skills. This mode leaves all other Pi links and skills untouched.
 
 Override installation locations when needed. Set `PI_BIN_DIR` to change where the `pi-task` command is linked:
 
@@ -96,9 +108,9 @@ It never runs in the background. To propose a change, use a task branch/worktree
 
 ## Skill catalog
 
-The repository currently ships 15 Pi-owned skills. Some are automatically applicable; most require explicit `/skill:<name>` invocation. See the [skill catalog](skills/README.md) for triggers and boundaries.
+The repository currently ships 15 Pi-owned skills, plus two symlink bridges to canonical shared GitHub issue skills. Some Pi-owned skills are automatically applicable; most require explicit `/skill:<name>` invocation. See the [skill catalog](skills/README.md) and [`config/shared-skills.txt`](config/shared-skills.txt) for the separate lists and boundaries.
 
-Pi also scans `~/.agents/skills` when present. Same-name Pi copies under `~/.pi/agent/skills` win discovery; `pi-config-check` ensures the complete Pi catalog is installed so another harness's copy cannot become the accidental fallback.
+Pi's maintained launcher uses `--no-skills`, so generic `~/.agents/skills` discovery is disabled. `pi-config-restore` exposes only the two explicitly allowlisted shared issue skills in `~/.pi/agent/skills`; `pi-config-check` verifies both symlinks and rejects collisions with Pi-owned names. It never copies shared skill contents or installs unrelated shared skills.
 
 ## Lean tool profiles
 

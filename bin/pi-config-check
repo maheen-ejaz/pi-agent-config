@@ -5,14 +5,22 @@ repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 pi_agent_dir=${PI_AGENT_DIR:-"$HOME/.pi/agent"}
 workspace_root=${PI_WORKSPACE_ROOT:-"$HOME/Developer"}
 pi_bin_dir=${PI_BIN_DIR:-"$HOME/.local/bin"}
+shared_skill_root="$HOME/.agents/skills"
 failures=0
 check_installed_links=true
+shared_skills_only=false
 
-case ${1:-} in
-  "") ;;
-  --source-only) check_installed_links=false ;;
-  *) printf 'usage: %s [--source-only]\n' "$0" >&2; exit 2 ;;
-esac
+if [ "$#" -gt 1 ]; then
+  printf 'usage: %s [--source-only | --shared-skills-only]\n' "$0" >&2
+  exit 2
+fi
+if [ "$#" -eq 1 ]; then
+  case $1 in
+    --source-only) check_installed_links=false ;;
+    --shared-skills-only) shared_skills_only=true ;;
+    *) printf 'usage: %s [--source-only | --shared-skills-only]\n' "$0" >&2; exit 2 ;;
+  esac
+fi
 
 check_link() {
   source_path=$1
@@ -32,7 +40,7 @@ check_link() {
   printf 'ok %s\n' "$target_path"
 }
 
-if $check_installed_links; then
+if $check_installed_links && ! $shared_skills_only; then
   check_link "$repo_root/config/AGENTS.md" "$pi_agent_dir/AGENTS.md"
   check_link "$repo_root/config/Developer.AGENTS.md" "$workspace_root/AGENTS.md"
   check_link "$repo_root/extensions/tool-profiles.ts" "$pi_agent_dir/extensions/tool-profiles.ts"
@@ -45,6 +53,57 @@ trap 'rm -rf "$manifest_tmp"' EXIT
 : > "$manifest_tmp/catalog"
 : > "$manifest_tmp/actual"
 : > "$manifest_tmp/readme"
+
+if $shared_skills_only; then
+  : > "$manifest_tmp/shared"
+  shared_seen=' '
+  if [ ! -f "$repo_root/config/shared-skills.txt" ]; then
+    printf 'error: missing shared skills allowlist: %s\n' "$repo_root/config/shared-skills.txt" >&2
+    failures=$((failures + 1))
+  else
+    if ! git -C "$repo_root" ls-files --error-unmatch -- config/shared-skills.txt >/dev/null 2>&1; then
+      printf 'error: shared skills allowlist is not tracked by Git: config/shared-skills.txt\n' >&2
+      failures=$((failures + 1))
+    fi
+    while IFS= read -r skill_name; do
+      [ -n "$skill_name" ] || continue
+      case $skill_name in
+        *[!a-z0-9-]*)
+          printf 'error: invalid shared skill name: %s\n' "$skill_name" >&2
+          failures=$((failures + 1))
+          continue
+          ;;
+      esac
+      case "$shared_seen" in
+        *" $skill_name "*)
+          printf 'error: duplicate shared skill name: %s\n' "$skill_name" >&2
+          failures=$((failures + 1))
+          continue
+          ;;
+      esac
+      shared_seen="$shared_seen$skill_name "
+      printf '%s\n' "$skill_name" >> "$manifest_tmp/shared"
+      if grep -Fxq "$skill_name" "$repo_root/skills/catalog.txt"; then
+        printf 'error: shared skill overlaps Pi-owned catalog: %s\n' "$skill_name" >&2
+        failures=$((failures + 1))
+      fi
+      skill_source="$shared_skill_root/$skill_name"
+      if [ ! -f "$skill_source/SKILL.md" ]; then
+        printf 'error: canonical shared skill is missing SKILL.md: %s\n' "$skill_source" >&2
+        failures=$((failures + 1))
+      else
+        check_link "$skill_source" "$pi_agent_dir/skills/$skill_name"
+      fi
+    done < "$repo_root/config/shared-skills.txt"
+  fi
+  if [ "$failures" -ne 0 ]; then
+    printf 'Pi shared skills check failed: %s problem(s).\n' "$failures" >&2
+    exit 1
+  fi
+  shared_count=$(wc -l < "$manifest_tmp/shared" | tr -d ' ')
+  printf 'Pi shared skills check passed (%s canonical bridge(s)).\n' "$shared_count"
+  exit 0
+fi
 
 catalog_count=0
 while IFS= read -r skill_name; do
@@ -72,6 +131,52 @@ while IFS= read -r skill_name; do
     check_link "$skill_source" "$pi_agent_dir/skills/$skill_name"
   fi
 done < "$repo_root/skills/catalog.txt"
+
+: > "$manifest_tmp/shared"
+if [ ! -f "$repo_root/config/shared-skills.txt" ]; then
+  printf 'error: missing shared skills allowlist: %s\n' "$repo_root/config/shared-skills.txt" >&2
+  failures=$((failures + 1))
+else
+  if ! git -C "$repo_root" ls-files --error-unmatch -- config/shared-skills.txt >/dev/null 2>&1; then
+    printf 'error: shared skills allowlist is not tracked by Git: config/shared-skills.txt\n' >&2
+    failures=$((failures + 1))
+  fi
+  while IFS= read -r skill_name; do
+    [ -n "$skill_name" ] || continue
+    case $skill_name in
+      *[!a-z0-9-]*)
+        printf 'error: invalid shared skill name: %s\n' "$skill_name" >&2
+        failures=$((failures + 1))
+        continue
+        ;;
+    esac
+    printf '%s\n' "$skill_name" >> "$manifest_tmp/shared"
+    if grep -Fxq "$skill_name" "$manifest_tmp/catalog"; then
+      printf 'error: shared skill overlaps Pi-owned catalog: %s\n' "$skill_name" >&2
+      failures=$((failures + 1))
+    fi
+    skill_source="$shared_skill_root/$skill_name"
+    if $check_installed_links; then
+      if [ ! -f "$skill_source/SKILL.md" ]; then
+        printf 'error: canonical shared skill is missing SKILL.md: %s\n' "$skill_source" >&2
+        failures=$((failures + 1))
+      else
+        check_link "$skill_source" "$pi_agent_dir/skills/$skill_name"
+      fi
+    fi
+  done < "$repo_root/config/shared-skills.txt"
+fi
+LC_ALL=C sort -o "$manifest_tmp/shared" "$manifest_tmp/shared"
+LC_ALL=C sort -u "$manifest_tmp/shared" > "$manifest_tmp/shared-unique"
+if ! cmp -s "$manifest_tmp/shared" "$manifest_tmp/shared-unique"; then
+  printf 'error: shared skills allowlist contains duplicate names\n' >&2
+  failures=$((failures + 1))
+fi
+comm -12 "$manifest_tmp/catalog" "$manifest_tmp/shared" > "$manifest_tmp/shared-collisions"
+if [ -s "$manifest_tmp/shared-collisions" ]; then
+  printf 'error: shared skills allowlist overlaps the Pi-owned catalog\n' >&2
+  failures=$((failures + 1))
+fi
 
 for skill_file in "$repo_root"/skills/*/SKILL.md; do
   [ -f "$skill_file" ] || continue
@@ -131,4 +236,5 @@ if [ "$failures" -ne 0 ]; then
   exit 1
 fi
 
-printf 'Pi configuration check passed (%s skills).\n' "$catalog_count"
+shared_count=$(wc -l < "$manifest_tmp/shared" | tr -d ' ')
+printf 'Pi configuration check passed (%s Pi-owned skills, %s shared skill bridges).\n' "$catalog_count" "$shared_count"

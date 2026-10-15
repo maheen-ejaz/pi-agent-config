@@ -16,8 +16,15 @@ printf '# Global guidance\n' > "$fixture/config/AGENTS.md"
 printf '# Workspace guidance\n' > "$fixture/config/Developer.AGENTS.md"
 printf '// extension fixture\n' > "$fixture/extensions/tool-profiles.ts"
 printf '# Skills README\n' > "$fixture/config/skills.README.md"
+cp "$source_root/config/shared-skills.txt" "$fixture/config/shared-skills.txt"
 cp "$source_root/skills/catalog.txt" "$fixture/skills/"
 printf '# Skill catalog\n\n| Skill |\n|---|\n' > "$fixture/skills/README.md"
+expected_shared=$(printf 'github-issue-delivery\ngithub-issue-operations')
+actual_shared=$(cat "$fixture/config/shared-skills.txt")
+if [ "$actual_shared" != "$expected_shared" ]; then
+  printf 'shared skill bridge must remain limited to the two canonical GitHub issue skills\n' >&2
+  exit 1
+fi
 while IFS= read -r skill_name; do
   [ -n "$skill_name" ] || continue
   mkdir -p "$fixture/skills/$skill_name"
@@ -29,6 +36,21 @@ git -C "$fixture" init -q -b main
 git -C "$fixture" add .
 git -C "$fixture" -c user.name=Test -c user.email=test@example.invalid commit -qm fixture
 "$fixture/bin/pi-config-check" --source-only >/dev/null
+git -C "$fixture" rm -q --cached config/shared-skills.txt
+if "$fixture/bin/pi-config-check" --source-only >"$tmp/untracked-shared.out" 2>"$tmp/untracked-shared.err"; then
+  printf 'expected untracked shared allowlist to fail source validation\n' >&2
+  exit 1
+fi
+grep -q 'shared skills allowlist is not tracked by Git' "$tmp/untracked-shared.err"
+export HOME="$tmp/untracked-shared-home"
+export PI_AGENT_DIR="$tmp/untracked-shared-pi"
+if "$fixture/bin/pi-config-restore" --shared-skills-only >"$tmp/untracked-restore.out" 2>"$tmp/untracked-restore.err"; then
+  printf 'expected restore to refuse an untracked shared allowlist\n' >&2
+  exit 1
+fi
+grep -q 'shared skills allowlist is not tracked by Git' "$tmp/untracked-restore.err"
+[ ! -e "$PI_AGENT_DIR/skills" ]
+git -C "$fixture" add config/shared-skills.txt
 
 mkdir -p "$fixture/.pi-subagents/artifacts"
 printf 'runtime transcript\n' > "$fixture/.pi-subagents/artifacts/review.jsonl"
@@ -74,6 +96,23 @@ if "$fixture/bin/pi-config-check" --source-only >"$tmp/duplicate.out" 2>"$tmp/du
 fi
 grep -q 'catalog, skills README, and skill directories must list each skill exactly once' "$tmp/duplicate.err"
 cp "$tmp/catalog.original" "$fixture/skills/catalog.txt"
+
+cp "$fixture/config/shared-skills.txt" "$tmp/shared.original"
+head -n 1 "$fixture/config/shared-skills.txt" >> "$fixture/config/shared-skills.txt"
+if "$fixture/bin/pi-config-check" --source-only >"$tmp/shared-duplicate.out" 2>"$tmp/shared-duplicate.err"; then
+  printf 'expected duplicate shared skill entry to fail validation\n' >&2
+  exit 1
+fi
+grep -q 'shared skills allowlist contains duplicate names' "$tmp/shared-duplicate.err"
+cp "$tmp/shared.original" "$fixture/config/shared-skills.txt"
+
+printf 'bb-cli\n' >> "$fixture/config/shared-skills.txt"
+if "$fixture/bin/pi-config-check" --source-only >"$tmp/shared-collision.out" 2>"$tmp/shared-collision.err"; then
+  printf 'expected shared/Pi-owned skill collision to fail validation\n' >&2
+  exit 1
+fi
+grep -q 'shared skill overlaps Pi-owned catalog' "$tmp/shared-collision.err"
+cp "$tmp/shared.original" "$fixture/config/shared-skills.txt"
 
 mkdir -p "$fixture/skills/unlisted"
 printf '# Unlisted skill\n' > "$fixture/skills/unlisted/SKILL.md"

@@ -18,6 +18,10 @@ export HOME="$tmp/home"
 export PI_AGENT_DIR="$tmp/pi-agent"
 export PI_WORKSPACE_ROOT="$tmp/workspace"
 mkdir -p "$HOME"
+for skill_name in github-issue-delivery github-issue-operations; do
+  mkdir -p "$HOME/.agents/skills/$skill_name"
+  printf '# Fixture shared skill: %s\n' "$skill_name" > "$HOME/.agents/skills/$skill_name/SKILL.md"
+done
 
 "$tmp/client/bin/pi-config-restore" >/dev/null
 "$tmp/client/bin/pi-config-sync" >/dev/null

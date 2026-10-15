@@ -16,15 +16,15 @@ This keeps always-on context small while retaining detailed procedures on demand
 
 ## Installation model
 
-`bin/pi-config-restore` creates absolute symlinks from Pi's standard paths to the clone. It never replaces an existing regular file or unexpected link. `bin/pi-config-check` verifies every link, the complete skill manifest, forbidden file names, and common secret patterns. Task worktrees use `bin/pi-config-check --source-only` because live links should continue pointing at the clean main checkout until changes merge.
+`bin/pi-config-restore` creates absolute symlinks from Pi's standard paths to the clone. It never replaces an existing regular file or unexpected link. It links Pi-owned skills from `skills/catalog.txt` and the two explicitly allowlisted shared issue skills from `config/shared-skills.txt`. Shared skill links point to `$HOME/.agents/skills`; their contents are not copied into this repository. When another canonical Pi setup owns the other configuration paths, `--shared-skills-only` restores and checks only these two shared links. `bin/pi-config-check` verifies every link, both disjoint manifests, forbidden file names, and common secret patterns. Task worktrees use `bin/pi-config-check --source-only` because live links should continue pointing at the clean main checkout until changes merge.
 
 Absolute links make the active source unambiguous. Moving the clone requires removing the old links deliberately and running restore from the new location.
 
 ## Skill separation
 
-The skill files in this repository are independent Pi copies. They may share historical origins with another harness, but Pi does not read that repository to obtain their content. Provider-specific agent metadata is excluded; each copy contains only Pi skill instructions and resources.
+Pi-owned skill files in this repository are independent copies. They may share historical origins with another harness, but Pi does not read another harness's copy to obtain their content. Provider-specific agent metadata is excluded; each copy contains only Pi skill instructions and resources.
 
-Pi natively scans both `~/.pi/agent/skills` and `~/.agents/skills`. When another harness also installs a same-name skill, Pi's own location has precedence. The configuration check prevents a missing Pi copy from silently changing ownership.
+The maintained Pi launcher uses `--no-skills`, so only Pi's user skills directory and package-provided skills are available; general `~/.agents/skills` discovery is disabled. The two shared GitHub issue skills needed for routing and explicit delivery are symlinked into Pi's directory from their canonical `~/.agents/skills` source. No other shared skills are exposed. The checker rejects name collisions with the independent Pi catalog and verifies the exact source links.
 
 ## Explicit synchronization
 
